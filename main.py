@@ -114,6 +114,16 @@ teams = ['FC Bayern Munich',
          'SC Preußen Münster']
 
 
+@socket_manager.on('join')
+def join_room(sio, room_name, *args, **kwargs):
+    socket_manager.enter_room(sid=sio, room=room_name)
+
+
+@socket_manager.on('leave')
+def leave_room(sio, room_name, *args, **kwargs):
+    socket_manager.leave_room(sid=sio, room=room_name)
+
+
 def generate_competitors():
     return sample(teams, 2)
 
@@ -130,36 +140,40 @@ def generate_new_event(time):
 
 async def new_event(event):
     events_store[event.get('id')] = event
-    await socket_manager.emit(UpdateEventMessages.NEW_EVENT, event)
+    await socket_manager.emit(UpdateEventMessages.NEW_EVENT, event, to='NEW_EVENT')
 
 
 async def event_status_change(event, status):
     event['status'] = status
     events_store[event.get('id')] = event
     await socket_manager.emit(UpdateEventMessages.STATUS_UPDATE, dict(id=event.get('id'),
-                                                                      status=event.get('status')))
+                                                                      status=event.get('status')),
+                              to=event.get('id'))
 
 
 async def event_score_change(event):
     home = event['score']['home']
     away = event['score']['away']
-    event['score'] = dict(home=home + choice([0, 0, 0, 1, 1, 2]),
-                          away=away + choice([0, 0, 0, 1, 1, 2]))
+    event['score'] = dict(home=home + getrandbits(1),
+                          away=away + getrandbits(1))
     events_store[event.get('id')] = event
     await socket_manager.emit(UpdateEventMessages.SCORE_UPDATE, dict(id=event.get('id'),
-                                                                     score=event.get('score')))
+                                                                     score=event.get('score')),
+                              to=event.get('id'))
 
 
 async def event_period_change(event, event_period):
     event['period'] = event_period
     events_store[event.get('id')] = event
     await socket_manager.emit(UpdateEventMessages.PERIOD_UPDATE, dict(id=event.get('id'),
-                                                                      period=event.get('period')))
+                                                                      period=event.get('period')),
+                              to=event.get('id'))
 
 
 async def remove_event(event):
     events_store.pop(event.get('id'))
-    await socket_manager.emit(UpdateEventMessages.REMOVE_EVENT, dict(id=event.get('id')))
+    await socket_manager.emit(UpdateEventMessages.REMOVE_EVENT, dict(id=event.get('id')),
+                              to=event.get('id'))
 
 
 def schedule_new_event(_store):
@@ -188,7 +202,7 @@ def schedule_new_event(_store):
                    args=[event, EventPeriod.FIRST_HALF_TIME],
                    run_date=event_start)
 
-    for i in range(3):
+    for i in range(5):
         if bool(getrandbits(1)):
             _store.add_job(event_score_change,
                            'date',
@@ -210,7 +224,7 @@ def schedule_new_event(_store):
                    args=[event, EventStatus.LIVE],
                    run_date=start_of_second_halftime)
 
-    for i in range(3):
+    for i in range(5):
         if bool(getrandbits(1)):
             _store.add_job(event_score_change,
                            'date',
@@ -247,7 +261,7 @@ def startup():
     store.add_job(schedule_new_event,
                   'interval',
                   args=[store],
-                  seconds=60,
+                  seconds=5,
                   jitter=30)
     store.start()
 
