@@ -261,7 +261,7 @@ def startup():
     store.add_job(schedule_new_event,
                   'interval',
                   args=[store],
-                  seconds=5,
+                  seconds=60,
                   jitter=30)
     store.start()
 
